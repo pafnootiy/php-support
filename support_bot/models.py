@@ -5,7 +5,7 @@ class Chat(models.Model):
 
     chat_id = models.CharField('Telegram Id чата с пользователем',
                                max_length=64,
-                               db_index=True,
+                               unique=True,
                                null=False,
                                blank=False)
     dialogue_state = models.CharField('Этап диалога пользователя с ботом',
@@ -21,7 +21,7 @@ class Chat(models.Model):
             return None
 
         chats = cls.objects.filter(chat_id=chat_id)
-        return chats[0].dialogue_stage
+        return chats[0].dialogue_state
         
     @classmethod
     def update_dialogue_state(cls, chat_id, dialogue_state):
