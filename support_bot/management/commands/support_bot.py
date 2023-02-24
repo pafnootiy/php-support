@@ -16,8 +16,6 @@ logger = logging.getLogger(__file__)
 
 START = 'START'
 MAIN_MENU = 'MAIN_MENU'
-CLIENT_BASE_MENU = 'CLIENT_BASE_MENU'
-DEVELOPER_BASE_MENU = 'MAIN_MENU'
 
 
 class Command(BaseCommand):
@@ -25,10 +23,11 @@ class Command(BaseCommand):
     
     def __init__(self):
         super().__init__()
-        # TODO: Добавить filename='support_bot.log', filemode='w' чтобы логи выводились в файл
         logging.basicConfig(
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            level=logging.INFO
+            level=logging.INFO,
+            filename='support_bot.log',
+            filemode='w'
         )
 
         self.updater = Updater(token=settings.TELEGRAM_BOT_TOKEN)
@@ -42,14 +41,12 @@ class Command(BaseCommand):
         
         self.states_handlers = {
             START: self.handle_start_command,
-            MAIN_MENU: self.handle_main_menu,
-            CLIENT_BASE_MENU: self.handle_client_base_menu,
-            DEVELOPER_BASE_MENU: self.handle_developer_base_menu,
+            MAIN_MENU: self.handle_start_command,
         }
 
     def handle(self, *args, **kwargs):
         """Прослушивает сообщения в Telegram."""
-        
+
         self.updater.start_polling()
         self.updater.idle()
         
@@ -60,49 +57,26 @@ class Command(BaseCommand):
             user_reply = update.message.text
             chat_id = update.message.chat_id
         elif update.callback_query:
-            # Обязательная команда (см. https://core.telegram.org/bots/api#callbackquery)
-            update.callback_query.answer()     
             user_reply = update.callback_query.data
             chat_id = update.callback_query.message.chat_id
         else:
             return
                    
-        dialogue_state = START if user_reply == '/start' else self.get_dialogue_state(chat_id) or START
-        state_handler = self.states_handlers[dialogue_state]
+        user_state = START if user_reply == '/start' else self.get_chat_state(chat_id) or START
+        state_handler = self.states_handlers[user_state]
 
-        next_dialogue_state = state_handler(update, context)
-        self.update_dialogue_state_in_db(chat_id, next_dialogue_state)
+        next_state = state_handler(update, context)
+        self.set_chat_state(chat_id, next_state)
         
-    def get_dialogue_state(self, chat_id):
-        """Получает из БД состояние диалога в чатe."""
+    def get_chat_state(self, chat_id):
+        """Получает состояние чата."""
 
-        dialogue_state = None
-        try:
-            dialogue_state = Chat.get_dialogue_state(chat_id=chat_id)
-        except Exception as ex:
-            logger.warning(f'Ошибка в чате с chat_id={chat_id}:')
-            logger.warning(ex)
-        if dialogue_state is None:
-            dialogue_state = START
-            Chat.objects.get_or_create(chat_id=chat_id, dialogue_state=dialogue_state)
-        return dialogue_state
-                
-    def update_dialogue_state_in_db(self, chat_id, dialogue_state):
-        """Обновляет в БД состояние диалога в чате."""
+        # TODO: заменить заглушку на получение состояния чата
+        return START # Chat.get_chat_state(chat_id=chat_id)
         
-        dialogue_state_from_db = Chat.update_dialogue_state(
-            chat_id=chat_id,
-            dialogue_state=dialogue_state
-        )
-        if dialogue_state_from_db is None:
-            dialogue_state_from_db = self.get_or_create_chat_in_db(update)
-
-        if dialogue_state_from_db != dialogue_state:
-            dialogue_state_from_db = Chat.update_dialogue_state(
-                chat_id=chat_id,
-                dialogue_state=dialogue_state
-            )
-        return dialogue_state_from_db
+    def set_chat_state(self, chat_id, next_state):
+        # TODO: заменить заглушку на изменение состояния чата
+        pass
 
     def handle_start_command(self, update, context):
         """Обрабатывает состояние START."""
@@ -115,50 +89,21 @@ class Command(BaseCommand):
                     message_id=update.message.message_id-1
                 )
                 
-        keyboard = [[
-            InlineKeyboardButton('Заказчик', callback_data='client'),
-            InlineKeyboardButton('Программист', callback_data='developer')
-        ]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        keyboard = [
+            [InlineKeyboardButton(user_role, callback_data=user_role)]
+            for user_role in ['Заказчик', 'Программист']
+        ]
+        reply_markup=InlineKeyboardMarkup(keyboard)
 
         context.bot.send_message(
             chat_id=update.effective_chat.id,
             text="Кто вы?",
             reply_markup=reply_markup
         )
-        return MAIN_MENU
+        return MAIN_MENU      
 
-    def handle_main_menu(self, update, context):
-        """Обрабатывает состояние MAIN_MENU."""
-
-        query = update.callback_query
-        variant = query.data
-        methods = {
-            'client': self.handle_client_button,
-            'developer': self.handle_developer_button,
-        }
-        return methods[variant](update, context)
-        
-    def handle_client_button(self, update, context):
-        """Обрабатывает нажатие кнопки Заказчик главного меню."""
-        pass
-        # if not self.check_payment(update, context):
-        
-        return CLIENT_BASE_MENU
-        
-    def handle_client_base_menu(self, update, context):
-        """Обрабатывает состояние CLIENT_BASE_MENU."""
-        pass
-        
-    def handle_developer_button(self, update, context):
-        """Обрабатывает нажатие кнопки Программист главного меню."""
-        pass
-        return DEVELOPER_BASE_MENU
- 
-    def handle_developer_base_menu(self, update, context):
-        """Обрабатывает состояние DEVELOPER_BASE_MENU."""
-        pass
-   
-    def handle_error(self, update, error):
+    def handle_error(update, error):
         """Обрабатывает ошибки."""
+
+        logger.warning(f'Update "{update}" вызвал ошибку "{error}"')
 
