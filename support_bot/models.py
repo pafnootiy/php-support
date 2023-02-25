@@ -1,5 +1,6 @@
 from django.db import models
 
+
 class Chat(models.Model):
     """Чат в Telegram."""
 
@@ -32,17 +33,29 @@ class Chat(models.Model):
  
         cls.objects.filter(chat_id=chat_id).update(dialogue_state=dialogue_state)
         return dialogue_state
+    
 
-        
+class Storage(models.Model):
+    message = models.TextField(blank=True)
+    is_published = models.BooleanField(default=True)
+
+
+class Developer(models.Model):
+    name = models.CharField('Фио', max_length=200)
+    chat = models.OneToOneField(Chat, on_delete=models.CASCADE,
+                             related_name='chats', blank=True,verbose_name='Чат')
+    approve = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.name
+
+
 class Order(models.Model):
     title = models.CharField(max_length=150)
     description = models.TextField(blank=True)
     created_at = models.DateField(auto_now_add=True)
     update_at = models.DateField(auto_now=True)
     is_published = models.BooleanField(default=True)
-
-
-class Storage(models.Model):
-    message = models.TextField(blank=True)
-    is_published = models.BooleanField(default=True)
-
+    developer = models.ForeignKey(Developer,on_delete=models.CASCADE,
+                              related_name='orders',verbose_name='Заявка')
+    take_order = models.BooleanField('Беру заказ', default=False)
