@@ -46,7 +46,7 @@ class Developer(models.Model):
         related_name='chats',
         blank=True,
     )
-    approve = models.BooleanField('Разрешено ли работать', default=False) # work_allowed ?
+    work_allowed = models.BooleanField('Разрешено ли работать', default=False)
 
     def __str__(self):
         return self.name
