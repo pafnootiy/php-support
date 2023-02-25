@@ -203,3 +203,4 @@ class Command(BaseCommand):
         """Обрабатывает ошибки."""
  
         logger.warning(f'Update "{update}" вызвал ошибку "{error}"')
+    
