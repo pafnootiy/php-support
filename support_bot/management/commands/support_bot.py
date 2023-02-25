@@ -1,6 +1,7 @@
 # TODO: Раскомментировать после отладки
 # import logging
 from contextlib import suppress
+from datetime import date
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
@@ -9,7 +10,7 @@ from telegram.error import BadRequest
 from telegram.ext import CallbackQueryHandler, CommandHandler
 from telegram.ext import Filters, MessageHandler, Updater
 
-from ...models import Chat
+from ...models import Chat, Client
 
 
 # TODO: Раскомментировать после отладки
@@ -49,11 +50,6 @@ class Command(BaseCommand):
         
         self.states_handlers = {
             START: self.handle_start_command,
-            MAIN_MENU: self.handle_button,
-            CLIENT_BASE_MENU: self.handle_button,
-            DEVELOPER_BASE_MENU: self.handle_button,
-            NEW_ORDER_MENU: self.handle_button,
-            CLIENT_ORDERS_MENU: self.handle_button,
         }
 
     def handle(self, *args, **kwargs):
@@ -68,17 +64,17 @@ class Command(BaseCommand):
         if update.message:
             user_reply = update.message.text
             chat_id = update.message.chat_id
+            dialogue_state = START if user_reply == '/start' else self.get_dialogue_state(chat_id) or START
+            state_handler = self.states_handlers[dialogue_state]
         elif update.callback_query:
             # Обязательная команда (см. https://core.telegram.org/bots/api#callbackquery)
             update.callback_query.answer()     
             user_reply = update.callback_query.data
             chat_id = update.callback_query.message.chat_id
+            state_handler = self.handle_button
         else:
             return
-                   
-        dialogue_state = START if user_reply == '/start' else self.get_dialogue_state(chat_id) or START
-        state_handler = self.states_handlers[dialogue_state]
-
+ 
         next_dialogue_state = state_handler(update, context)
         self.update_dialogue_state_in_db(chat_id, next_dialogue_state)
         
@@ -179,11 +175,22 @@ class Command(BaseCommand):
         return CLIENT_BASE_MENU
 
     def check_payment(self, update, context):
-        """Проверяет, оплатил ли Заказчик предоставление ему услуг в этом чате."""
+        """Проверяет, оплатил ли Заказчик предоставление услуг."""
 
-        # TODO: Написать реальный код вместо заглушки
-        return True
-        
+        chat_id = self.get_chat_id(update)
+        count = Client.objects.filter(chat__chat_id=chat_id, expiration_at__gte=date.today()).count()
+        return count == 1
+
+    def get_chat_id(self, update):
+        """Получает chat_id чата Telegram."""
+      
+        if update.message:
+            return update.message.chat_id
+
+        if update.callback_query:
+            return update.callback_query.message.chat_id
+        return None
+ 
     def handle_new_order_button(self, update, context):
         pass
         return NEW_ORDER_MENU

@@ -33,29 +33,59 @@ class Chat(models.Model):
  
         cls.objects.filter(chat_id=chat_id).update(dialogue_state=dialogue_state)
         return dialogue_state
+
     
-
-class Storage(models.Model):
-    message = models.TextField(blank=True)
-    is_published = models.BooleanField(default=True)
-
-
 class Developer(models.Model):
+    """Программист."""
+
     name = models.CharField('Фио', max_length=200)
-    chat = models.OneToOneField(Chat, on_delete=models.CASCADE,
-                             related_name='chats', blank=True,verbose_name='Чат')
-    work_allowed = models.BooleanField(default=False)
+    chat = models.OneToOneField(
+        Chat,
+        verbose_name='Чат',
+        on_delete=models.CASCADE,
+        related_name='chats',
+        blank=True,
+    )
+    work_allowed = models.BooleanField('Разрешено ли работать', default=False)
 
     def __str__(self):
         return self.name
 
 
+class Client(models.Model):
+   """Заказчик."""
+
+   chat = models.OneToOneField(
+       Chat,
+       verbose_name='Связанный чат',
+       on_delete=models.PROTECT
+   )
+   expiration_at = models.DateField('Когда истекает срок обслуживания', null=True, blank=True)
+    
+
 class Order(models.Model):
-    title = models.CharField(max_length=150)
-    description = models.TextField(blank=True)
-    created_at = models.DateField(auto_now_add=True)
-    update_at = models.DateField(auto_now=True)
+    """Заказ."""
+
+    title = models.CharField('Название', max_length=150),
+    description = models.TextField('Описание', blank=True),
+    created_at = models.DateField('Дата создания', auto_now_add=True)
+    client = models.ForeignKey(
+        Client,
+        related_name='orders',
+        verbose_name='Создан заказчиком',
+        on_delete=models.PROTECT
+    )
+    developer = models.ForeignKey(
+        Developer,
+        on_delete=models.PROTECT,
+        related_name='orders',
+        verbose_name='Кто разрабатывает',
+        null=True        
+    )
+    finished_at = models.DateField('Дата завершения', null=True, blank=True, auto_now=False)
+
+
+class Storage(models.Model):
+    message = models.TextField(blank=True)
     is_published = models.BooleanField(default=True)
-    developer = models.ForeignKey(Developer,on_delete=models.CASCADE,
-                              related_name='orders',verbose_name='Заявка')
-    take_order = models.BooleanField('Беру заказ', default=False)
+
