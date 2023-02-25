@@ -1,5 +1,6 @@
 from django.db import models
 
+
 class Chat(models.Model):
     """Чат в Telegram."""
 
@@ -33,13 +34,48 @@ class Chat(models.Model):
         cls.objects.filter(chat_id=chat_id).update(dialogue_state=dialogue_state)
         return dialogue_state
 
-        
+
+class Client(models.Model):
+    """Заказчик."""
+
+    chat = models.OneToOneField(
+        Chat,
+        verbose_name='Связанный чат',
+        on_delete=models.PROTECT
+    )
+    expiration_at = models.DateField('Когда истекает срок обслуживания')
+
+
+#class Developer(models.Model):
+#    """Программист."""
+
+#    chat = models.OneToOneField(
+#        Chat,
+#        verbose_name='Связанный чат',
+#        on_delete=models.PROTECT
+#     )
+#    work_allowed = models.BooleanField('Разрешено ли работать', default=False)
+
+
 class Order(models.Model):
-    title = models.CharField(max_length=150)
-    description = models.TextField(blank=True)
-    created_at = models.DateField(auto_now_add=True)
-    update_at = models.DateField(auto_now=True)
-    is_published = models.BooleanField(default=True)
+    """Заказ."""
+
+    title = models.CharField('Название', max_length=150)
+    description = models.TextField('Описание', blank=True)
+    created_at = models.DateField('Дата создания', auto_now_add=True)
+#    created_by = models.ForeignKey(
+#        Client,
+#        related_name='orders',
+#        verbose_name='Кем создан',
+#        on_delete=models.PROTECT
+#    )
+#    developed_by = models.ForeignKey(
+#        Developer,
+#        related_name='orders',
+#        verbose_name='Кто разрабатывает',
+#        on_delete=models.PROTECT
+#    )
+#    finished_at = models.DateField('Дата завершения', auto_now=False)
 
 
 class Storage(models.Model):
