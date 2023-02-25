@@ -6,13 +6,13 @@ class Chat(models.Model):
 
     chat_id = models.CharField('Telegram Id чата с пользователем',
                                max_length=64,
-                               db_index=True,
+                               unique=True,
                                null=False,
                                blank=False)
     dialogue_state = models.CharField('Этап диалога пользователя с ботом',
                                       max_length=64,
                                       default='START')
-
+    
     @classmethod
     def get_dialogue_state(cls, chat_id):
         """Получает из БД состояние диалога для чата."""
@@ -22,22 +22,18 @@ class Chat(models.Model):
             return None
 
         chats = cls.objects.filter(chat_id=chat_id)
-        return chats[0].dialogue_stage
-
+        return chats[0].dialogue_state
+        
     @classmethod
     def update_dialogue_state(cls, chat_id, dialogue_state):
         """Изменяет в БД состояние диалога для чата."""
 
         if cls.objects.filter(chat_id=chat_id).count() != 1:
             return None
-
-        cls.objects.filter(chat_id=chat_id).update(
-            dialogue_state=dialogue_state)
+ 
+        cls.objects.filter(chat_id=chat_id).update(dialogue_state=dialogue_state)
         return dialogue_state
-
-    def __str__(self):
-        return self.chat_id
-
+    
 
 class Storage(models.Model):
     message = models.TextField(blank=True)
