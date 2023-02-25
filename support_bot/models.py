@@ -33,6 +33,7 @@ class Chat(models.Model):
  
         cls.objects.filter(chat_id=chat_id).update(dialogue_state=dialogue_state)
         return dialogue_state
+
     
 class Developer(models.Model):
     """Программист."""
@@ -45,44 +46,44 @@ class Developer(models.Model):
         related_name='chats',
         blank=True,
     )
-    approve = models.BooleanField(default=True) # work_allowed = models.BooleanField('Разрешено ли работать', default=False)
+    approve = models.BooleanField('Разрешено ли работать', default=False) # work_allowed ?
 
     def __str__(self):
         return self.name
 
-# class Client(models.Model):
-#    """Заказчик."""
 
-#    chat = models.OneToOneField(
-#        Chat,
-#        verbose_name='Связанный чат',
-#        on_delete=models.PROTECT
-#    )
-#    expiration_at = models.DateField('Когда истекает срок обслуживания', null=True, blank=True)
+class Client(models.Model):
+   """Заказчик."""
+
+   chat = models.OneToOneField(
+       Chat,
+       verbose_name='Связанный чат',
+       on_delete=models.PROTECT
+   )
+   expiration_at = models.DateField('Когда истекает срок обслуживания', null=True, blank=True)
     
 
 class Order(models.Model):
     """Заказ."""
 
-    title = models.CharField(max_length=150) # models.CharField('Название', max_length=150)
-    description = models.TextField(blank=True) # models.TextField('Описание', blank=True)
-    created_at = models.DateField(auto_now_add=True) # models.DateField('Дата создания', auto_now_add=True)
-    update_at = models.DateField(auto_now=True) # client = models.ForeignKey(
-#        Client,
-#        related_name='orders',
-#        verbose_name='Создан заказчиком',
-#        on_delete=models.PROTECT
-#    )
-    is_published = models.BooleanField(default=True) # Удалить
+    title = models.CharField('Название', max_length=150),
+    description = models.TextField('Описание', blank=True),
+    created_at = models.DateField('Дата создания', auto_now_add=True)
+    client = models.ForeignKey(
+        Client,
+        related_name='orders',
+        verbose_name='Создан заказчиком',
+        on_delete=models.PROTECT
+    )
     developer = models.ForeignKey(
         Developer,
-        on_delete=models.CASCADE, # models.PROTECT
+        on_delete=models.PROTECT,
         related_name='orders',
-        verbose_name='Заявка'  # 'Кто разрабатывает',
-#        
+        verbose_name='Кто разрабатывает',
+        null=True        
     )
-    take_order = models.BooleanField('Беру заказ', default=False) # Удалить
-#    finished_at = models.DateField('Дата завершения', auto_now=False)
+    finished_at = models.DateField('Дата завершения', null=True, blank=True, auto_now=False)
+
 
 class Storage(models.Model):
     message = models.TextField(blank=True)
