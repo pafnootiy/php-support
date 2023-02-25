@@ -44,7 +44,7 @@ class Developer(models.Model):
     name = models.CharField('Фио', max_length=200)
     chat = models.OneToOneField(Chat, on_delete=models.CASCADE,
                              related_name='chats', blank=True,verbose_name='Чат')
-    approve = models.BooleanField(default=True)
+    work_allowed = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name
