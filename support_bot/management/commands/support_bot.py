@@ -10,7 +10,7 @@ from telegram.error import BadRequest
 from telegram.ext import CallbackQueryHandler, CommandHandler
 from telegram.ext import Filters, MessageHandler, Updater
 
-from ...models import Chat, Client
+from ...models import Chat, Client, Developer
 
 
 # TODO: Раскомментировать после отладки
@@ -20,9 +20,10 @@ from ...models import Chat, Client
 START = 'START'
 MAIN_MENU = 'MAIN_MENU'
 CLIENT_BASE_MENU = 'CLIENT_BASE_MENU'
+CLIENT_NEW_ORDER_TITLE = 'CLIENT_NEW_ORDER_TITLE'
+CLIENT_NEW_ORDER_DESCRIPTION = 'CLIENT_NEW_ORDER_DESCRIPTION'
+CLIENT_ORDER_CHOICE = 'CLIENT_ORDER_CHOICE'
 DEVELOPER_BASE_MENU = 'DEVELOPER_BASE_MENU'
-NEW_ORDER_MENU = 'NEW_ORDER_MENU'
-CLIENT_ORDERS_MENU = 'CLIENT_ORDERS_MENU'
 
 
 class Command(BaseCommand):
@@ -50,6 +51,7 @@ class Command(BaseCommand):
         
         self.states_handlers = {
             START: self.handle_start_command,
+            CLIENT_NEW_ORDER_TITLE: self.handle_new_order_title,
         }
 
     def handle(self, *args, **kwargs):
@@ -116,23 +118,18 @@ class Command(BaseCommand):
                     chat_id=update.effective_chat.id,
                     message_id=update.message.message_id-1
                 )
-      
-        context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="Кто вы?",
-            reply_markup=self.create_main_menu_markup()
-        )
-        return MAIN_MENU
 
-    def create_main_menu_markup(self):
-        """Создаёт клавиатуру главного меню."""
- 
         keyboard = [[
             InlineKeyboardButton('Заказчик', callback_data='client'),
             InlineKeyboardButton('Программист', callback_data='developer')
-        ]]
-        return InlineKeyboardMarkup(keyboard)
-        
+        ]]      
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Кто вы?',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return MAIN_MENU
+
     def handle_button(self, update, context):
         """Обрабатывает нажатие кнопок."""
 
@@ -142,7 +139,7 @@ class Command(BaseCommand):
             'main_menu': self.handle_start_command,
             'client': self.handle_client_button,
             'developer': self.handle_developer_button,
-            'new_order': self.handle_new_order_button,
+            'client_new_order': self.handle_client_new_order_button,
             'client_orders': self.handle_client_orders_button,
         }
         return methods[variant](update, context)
@@ -151,16 +148,17 @@ class Command(BaseCommand):
         """Обрабатывает нажатие кнопки 'Заказчик' в главном меню."""
 
         if not self.check_payment(update, context):
+            keyboard = [[InlineKeyboardButton('«‎ Вернуться в главное меню', callback_data='main_menu')]]
             context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text="Оплатите, пожалуйста, наши услуги и затем вернитесь в чат.",
-                reply_markup=self.create_main_menu_markup()
+                text='Оплатите, пожалуйста, наши услуги и затем вернитесь в чат.',
+                reply_markup=InlineKeyboardMarkup(keyboard)
             )
-            return MAIN_MENU
+            return START
         
         keyboard = [
             [
-                InlineKeyboardButton('Создать заказ', callback_data='new_order'),
+                InlineKeyboardButton('Создать заказ', callback_data='client_order_creation'),
                 InlineKeyboardButton('Мои заказы', callback_data='client_orders')
             ],
             [
@@ -169,7 +167,7 @@ class Command(BaseCommand):
         ]
         context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text="Выберите желаемое действие.",
+            text='Выберите желаемое действие.',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return CLIENT_BASE_MENU
@@ -190,23 +188,39 @@ class Command(BaseCommand):
         if update.callback_query:
             return update.callback_query.message.chat_id
         return None
- 
-    def handle_new_order_button(self, update, context):
-        pass
-        return NEW_ORDER_MENU
 
-    def handle_client_orders_button(self, update, context):
-        pass
-        return CLIENT_ORDERS_MENU
-         
-    def handle_developer_button(self, update, context):
-        """Обрабатывает нажатие кнопки 'Программист' в главном меню."""
+    def handle_client_new_order_button(self, update, context):
+        """Начинает создание Заказчиком нового заказа."""
+
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Введите Название заказа'
+        )
+        return CLIENT_NEW_ORDER_TITLE
+ 
+    def handle_new_order_title(self, update, context):
+        """Принимает от Заказчика ввод названия нового заказа."""
         
+        pass
+        return CLIENT_NEW_ORDER_DESCRIPTION
+ 
+    def handle_client_orders_button(self, update, context):
+        """Показывает Заказчику список его заказов."""
+
         # TODO: Написать реальный код вместо заглушки
         pass
-        return DEVELOPER_BASE_MENU
-   
+        return CLIENT_ORDER_CHOICE
+    
+    def handle_developer_button(self, update, context):
+        """Обрабатывает нажатие кнопки 'Программист' в главном меню."""
+
+        # TODO: Написать реальный код вместо заглушки
+        pass
+        return START
+
     def handle_error(self, update, error):
         """Обрабатывает ошибки."""
  
         logger.warning(f'Update "{update}" вызвал ошибку "{error}"')
+        
+
