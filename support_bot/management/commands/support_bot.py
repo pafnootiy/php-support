@@ -3,6 +3,7 @@
 from contextlib import suppress
 from datetime import date
 
+from django.db.models import Max
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -10,7 +11,7 @@ from telegram.error import BadRequest
 from telegram.ext import CallbackQueryHandler, CommandHandler
 from telegram.ext import Filters, MessageHandler, Updater
 
-from ...models import Chat, Client, Developer
+from ...models import Chat, Client, Developer, Order
 
 
 # TODO: Раскомментировать после отладки
@@ -21,7 +22,7 @@ START = 'START'
 MAIN_MENU = 'MAIN_MENU'
 CLIENT_BASE_MENU = 'CLIENT_BASE_MENU'
 CLIENT_NEW_ORDER_TITLE = 'CLIENT_NEW_ORDER_TITLE'
-CLIENT_NEW_ORDER_DESCRIPTION = 'CLIENT_NEW_ORDER_DESCRIPTION'
+CLIENT_NEW_ORDER_MENU = 'CLIENT_NEW_ORDER_MENU'
 CLIENT_ORDER_CHOICE = 'CLIENT_ORDER_CHOICE'
 DEVELOPER_BASE_MENU = 'DEVELOPER_BASE_MENU'
 
@@ -158,7 +159,7 @@ class Command(BaseCommand):
         
         keyboard = [
             [
-                InlineKeyboardButton('Создать заказ', callback_data='client_order_creation'),
+                InlineKeyboardButton('Создать заказ', callback_data='client_new_order'),
                 InlineKeyboardButton('Мои заказы', callback_data='client_orders')
             ],
             [
@@ -192,6 +193,7 @@ class Command(BaseCommand):
     def handle_client_new_order_button(self, update, context):
         """Начинает создание Заказчиком нового заказа."""
 
+        # TODO: Здесь тоже надо проверить, оплатил ли заказчик услуги (а то он может нажать кнопку вверху чата).
         context.bot.send_message(
             chat_id=update.effective_chat.id,
             text='Введите Название заказа'
@@ -201,8 +203,44 @@ class Command(BaseCommand):
     def handle_new_order_title(self, update, context):
         """Принимает от Заказчика ввод названия нового заказа."""
         
-        pass
-        return CLIENT_NEW_ORDER_DESCRIPTION
+        title = update.message.text.strip()
+        if len(title) < 4:
+            context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text='Слишком короткое Название заказа. Заказ не создан.'
+            )
+            return self.handle_client_button(update, context)
+
+        chat_id = self.get_chat_id(update)
+        client = Client.objects.get(chat__chat_id=chat_id)
+        max_orders_number = Order.objects.filter(client=client).aggregate(Max('number')).get('number__max')
+        new_order_number = max_orders_number+1 if max_orders_number else 1
+        Order.objects.create(number=new_order_number, title=title, description='', client=client)
+
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=f'Заказ № {new_order_number} с заголовком "{title}" создан.'
+        )
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    f'Добавить описание к Заказу № {new_order_number}',
+                    callback_data='client_add_order_description_{new_order_number}'
+                ),
+            ],
+            [
+                InlineKeyboardButton('«‎ Вернуться в меню Заказчика', callback_data='client')
+            ],
+            [
+                InlineKeyboardButton('««‎ Вернуться в главное меню', callback_data='main_menu')
+            ]
+        ]
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Выберите желаемое действие.',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )            
+        return CLIENT_NEW_ORDER_MENU
  
     def handle_client_orders_button(self, update, context):
         """Показывает Заказчику список его заказов."""
