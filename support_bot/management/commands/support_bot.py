@@ -595,10 +595,16 @@ class Command(BaseCommand):
     def handle_add_question_order(self, update, context):
         question = update.message.text
 
-        print(question)
+        keyboard = []
+        message = 'Ваш вопрос отправлен заказчику'
+        keyboard.append([InlineKeyboardButton('<< Назад', callback_data='show_work_orders')])
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
         return DEVELOPER_BASE_MENU
-
 
     def handle_make_done_order(self, update, context):
         keyboard = []
