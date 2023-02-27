@@ -32,7 +32,7 @@ class DeveloperAdmin(admin.ModelAdmin):
     
 @admin.register(models.Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ['title', 'created_at', 'client', 'number', 'is_published', 'developer', 'finished_at']
+    list_display = ['title', 'created_at', 'client', 'number', 'published_at', 'developer', 'finished_at']
     list_display_links = ['title']
     search_fields = ['title']
     readonly_fields = ['created_at']

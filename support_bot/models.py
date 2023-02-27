@@ -95,7 +95,7 @@ class Order(models.Model):
         verbose_name='Заказчик',
         on_delete=models.PROTECT
     )
-    is_published = models.BooleanField('Опубликован ли', default=False)
+    published_at = models.DateTimeField('Время публикации', null=True, blank=True, auto_now=False)
     developer = models.ForeignKey(
         Developer,
         on_delete=models.PROTECT,
