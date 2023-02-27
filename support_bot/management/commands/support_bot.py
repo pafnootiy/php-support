@@ -245,6 +245,8 @@ class Command(BaseCommand):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
+        return DEVELOPER_BASE_MENU
+
     def handle_developer_agreement(self, update, context):
 
         message = dedent('''
@@ -266,6 +268,7 @@ class Command(BaseCommand):
             text=message,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+        return DEVELOPER_BASE_MENU
 
     def handle_developer_registration(self, update, context):
 
@@ -284,6 +287,8 @@ class Command(BaseCommand):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
+        return DEVELOPER_BASE_MENU
+
     def handle_show_free_orders(self, update, context):
 
         orders = Order.objects.filter(developer__isnull=True)
@@ -300,6 +305,7 @@ class Command(BaseCommand):
             text='Выберете заказ',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+        return DEVELOPER_BASE_MENU
 
     def handle_select_free_order(self, update, context):
         print(update.callback_query.data)
