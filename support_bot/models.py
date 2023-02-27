@@ -101,7 +101,8 @@ class Order(models.Model):
         on_delete=models.PROTECT,
         related_name='orders',
         verbose_name='Программист',
-        null=True        
+        null=True,
+        blank=True
     )
     finished_at = models.DateTimeField('Время завершения', null=True, blank=True, auto_now=False)
 

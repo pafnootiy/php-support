@@ -2,16 +2,18 @@
 # import logging
 from contextlib import suppress
 from datetime import date
+from functools import partial
+from textwrap import dedent
 
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.management.base import BaseCommand
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import BadRequest
 from telegram.ext import CallbackQueryHandler, CommandHandler
 from telegram.ext import Filters, MessageHandler, Updater
 
-from ...models import Chat, Client, Developer
-
+from ...models import Chat, Client, Developer, Order
 
 # TODO: Раскомментировать после отладки
 # logger = logging.getLogger(__file__)
@@ -24,6 +26,7 @@ CLIENT_NEW_ORDER_TITLE = 'CLIENT_NEW_ORDER_TITLE'
 CLIENT_NEW_ORDER_DESCRIPTION = 'CLIENT_NEW_ORDER_DESCRIPTION'
 CLIENT_ORDER_CHOICE = 'CLIENT_ORDER_CHOICE'
 DEVELOPER_BASE_MENU = 'DEVELOPER_BASE_MENU'
+DEVELOPER_SELECT_ORDER = 'DEVELOPER_SELECT_ORDER'
 
 
 class Command(BaseCommand):
@@ -52,6 +55,7 @@ class Command(BaseCommand):
         self.states_handlers = {
             START: self.handle_start_command,
             CLIENT_NEW_ORDER_TITLE: self.handle_new_order_title,
+            DEVELOPER_SELECT_ORDER: self.handle_select_free_order,
         }
 
     def handle(self, *args, **kwargs):
@@ -141,8 +145,15 @@ class Command(BaseCommand):
             'developer': self.handle_developer_button,
             'client_new_order': self.handle_client_new_order_button,
             'client_orders': self.handle_client_orders_button,
+            'developer_agreement': self.handle_developer_agreement,
+            'developer_registration': self.handle_developer_registration,
+            'show_free_orders': self.handle_show_free_orders,
+            'handle_select_free_order': self.handle_select_free_order,
         }
-        return methods[variant](update, context)
+        try:
+            return methods[variant](update, context)
+        except KeyError:
+            return self.handle_show_order(update, context)
         
     def handle_client_button(self, update, context):
         """Обрабатывает нажатие кнопки 'Заказчик' в главном меню."""
@@ -214,9 +225,124 @@ class Command(BaseCommand):
     def handle_developer_button(self, update, context):
         """Обрабатывает нажатие кнопки 'Программист' в главном меню."""
 
-        # TODO: Написать реальный код вместо заглушки
+        keyboard = [
+            [
+                InlineKeyboardButton('Условия работы', callback_data='developer_agreement'),
+            ],
+            [
+                InlineKeyboardButton('Регистрация', callback_data='developer_registration'),
+            ],
+            [
+                InlineKeyboardButton('Смотреть свободные заказы', callback_data='show_free_orders'),
+            ],
+            [
+                InlineKeyboardButton('Назад', callback_data='main_menu'),
+            ],
+        ]
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Выберите желаемое действие.',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+        return DEVELOPER_BASE_MENU
+
+    def handle_developer_agreement(self, update, context):
+
+        message = dedent('''
+                Пользовательское соглашение.
+                1. Зарегистрироваться.
+                2. Дождаться активации аккаунта админом.
+                3. Выбрать заказ для выполнения.
+                4. Выполнить заказ.
+                5. Отметить заказ выполненным.
+                6. Получить профит.
+                ''')
+        keyboard = [
+            [
+                InlineKeyboardButton('Назад', callback_data='developer'),
+            ],
+        ]
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return DEVELOPER_BASE_MENU
+
+    def handle_developer_registration(self, update, context):
+
+        message = dedent('''
+                Запрос на регистрацию отправлен. 
+                Дождитесь активации аккаунта администратором. 
+                ''')
+        keyboard = [
+            [
+                InlineKeyboardButton('Назад', callback_data='developer'),
+            ],
+        ]
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+        return DEVELOPER_BASE_MENU
+
+    def handle_show_free_orders(self, update, context):
+
+        orders = Order.objects.filter(developer__isnull=True)
+
+        keyboard = []
+
+        for order in orders:
+            keyboard.append([InlineKeyboardButton(order.title, callback_data=order.id)])
+
+        keyboard.append([InlineKeyboardButton('<< Назад', callback_data='developer')])
+
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Выберете заказ',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return DEVELOPER_BASE_MENU
+
+    def handle_select_free_order(self, update, context):
+        print(update.callback_query.data)
         pass
-        return START
+
+    def handle_show_order(self, update, context):
+        query = update.callback_query
+        variant = query.data
+
+        keyboard = []
+
+        try:
+            order = Order.objects.get(pk=variant)
+        except ObjectDoesNotExist:
+            keyboard.append([[InlineKeyboardButton('Назад', callback_data='show_free_orders')]])
+            context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text='Такого заказа нет',
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+
+        message = dedent(f'''
+                    Заголовок: {order.title}
+                    Описание: {order.description}
+                    Клиент: {order.client.name}
+                    ''')
+
+        keyboard.append([InlineKeyboardButton('За работу', callback_data='handle_select_free_order')])
+        keyboard.append([InlineKeyboardButton('Назад', callback_data='show_free_orders')])
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+        return DEVELOPER_SELECT_ORDER
+
 
     def handle_error(self, update, error):
         """Обрабатывает ошибки."""
