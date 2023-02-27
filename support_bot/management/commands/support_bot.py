@@ -15,10 +15,7 @@ from telegram.ext import CallbackQueryHandler, CommandHandler
 from telegram.ext import Filters, MessageHandler, Updater
 
 from ...models import Chat, Client, Developer, Order
-<<<<<<< HEAD
 
-=======
->>>>>>> 668332d8ad66fa3b2e9851bd1b6b39366e51e672
 
 # TODO: Раскомментировать после отладки
 # logger = logging.getLogger(__file__)
