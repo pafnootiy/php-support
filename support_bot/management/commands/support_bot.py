@@ -5,14 +5,14 @@ from datetime import date
 from textwrap import dedent
 
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.management.base import BaseCommand
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import BadRequest
 from telegram.ext import CallbackQueryHandler, CommandHandler
 from telegram.ext import Filters, MessageHandler, Updater
 
-from ...models import Chat, Client, Developer
-
+from ...models import Chat, Client, Developer, Order
 
 # TODO: Раскомментировать после отладки
 # logger = logging.getLogger(__file__)
@@ -144,8 +144,12 @@ class Command(BaseCommand):
             'client_orders': self.handle_client_orders_button,
             'developer_agreement': self.handle_developer_agreement,
             'developer_registration': self.handle_developer_registration,
+            'show_free_orders': self.handle_show_free_orders,
         }
-        return methods[variant](update, context)
+        try:
+            return methods[variant](update, context)
+        except KeyError:
+            return self.handle_show_order(update, context)
         
     def handle_client_button(self, update, context):
         """Обрабатывает нажатие кнопки 'Заказчик' в главном меню."""
@@ -270,6 +274,53 @@ class Command(BaseCommand):
                 InlineKeyboardButton('Назад', callback_data='developer'),
             ],
         ]
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    def handle_show_free_orders(self, update, context):
+
+        orders = Order.objects.filter(developer__isnull=True)
+
+        keyboard = []
+
+        for order in orders:
+            keyboard.append([InlineKeyboardButton(order.title, callback_data=order.id)])
+
+        keyboard.append([InlineKeyboardButton('<< Назад', callback_data='developer')])
+
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Выберете заказ',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    def handle_show_order(self, update, context):
+        query = update.callback_query
+        variant = query.data
+
+        keyboard = []
+
+        try:
+            order = Order.objects.get(pk=variant)
+        except ObjectDoesNotExist:
+            keyboard.append([[InlineKeyboardButton('Назад', callback_data='show_free_orders')]])
+            context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text='Такого заказа нет',
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+
+        message = dedent(f'''
+                    Заголовок: {order.title}
+                    Описание: {order.description}
+                    Клиент: {order.client.name}
+                    ''')
+
+        keyboard.append([InlineKeyboardButton('За работу', callback_data='select_order')])
+        keyboard.append([InlineKeyboardButton('Назад', callback_data='show_free_orders')])
         context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=message,
