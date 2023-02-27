@@ -32,6 +32,7 @@ CLIENT_PUBLISH_ORDER_CHOICE = 'CLIENT_PUBLISH_ORDER_CHOICE'
 CLIENT_ORDER_CHOICE = 'CLIENT_ORDER_CHOICE'
 DEVELOPER_BASE_MENU = 'DEVELOPER_BASE_MENU'
 DEVELOPER_SELECT_ORDER = 'DEVELOPER_SELECT_ORDER'
+DEVELOPER_ADD_QUESTION_ORDER = 'DEVELOPER_ADD_QUESTION_ORDER'
 
 
 class Command(BaseCommand):
@@ -61,6 +62,7 @@ class Command(BaseCommand):
             START: self.handle_start_command,
             CLIENT_NEW_ORDER_TITLE: self.handle_new_order_title,
             CLIENT_ADD_ORDER_DESCRIPTION: self.handle_add_order_description,
+            DEVELOPER_ADD_QUESTION_ORDER: self.handle_add_question_order,
         }
 
     def handle(self, *args, **kwargs):
@@ -159,6 +161,7 @@ class Command(BaseCommand):
             'show_work_order': self.handle_show_work_order,
             'make_done_order': self.handle_make_done_order,
             'show_history_orders': self.handle_show_history_orders,
+            'make_question_order': self.handle_make_question_order,
         }
 
         if variant in methods:
@@ -494,7 +497,7 @@ class Command(BaseCommand):
             )
             return DEVELOPER_BASE_MENU
 
-        orders = [order.title for order in orders]
+        orders = [str(count+1) + ' ' + order.title + ' ' + order.finished_at.strftime('%m/%d/%Y, %H:%M:%S') for count, order in enumerate(orders)]
 
         message = '\n'.join(orders)
 
@@ -570,6 +573,7 @@ class Command(BaseCommand):
                     customer: {order.client}
                     ''')
 
+        keyboard.append([InlineKeyboardButton('Задать вопрос по заказу', callback_data='make_question_order')])
         keyboard.append([InlineKeyboardButton('Сделано', callback_data='make_done_order')])
         keyboard.append([InlineKeyboardButton('<< Назад', callback_data='show_work_orders')])
         context.bot.send_message(
@@ -578,6 +582,23 @@ class Command(BaseCommand):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return DEVELOPER_BASE_MENU
+
+    def handle_make_question_order(self, update, context):
+
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Введите вопрос'
+        )
+
+        return DEVELOPER_ADD_QUESTION_ORDER
+
+    def handle_add_question_order(self, update, context):
+        question = update.message.text
+
+        print(question)
+
+        return DEVELOPER_BASE_MENU
+
 
     def handle_make_done_order(self, update, context):
         keyboard = []
@@ -606,7 +627,6 @@ class Command(BaseCommand):
         )
         return DEVELOPER_BASE_MENU
 
-
     def handle_developer_agreement(self, update, context):
 
         message = dedent('''
@@ -628,6 +648,7 @@ class Command(BaseCommand):
             text=message,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+
         return DEVELOPER_BASE_MENU
 
     def handle_developer_registration(self, update, context):
@@ -657,6 +678,7 @@ class Command(BaseCommand):
             message = 'Выбирайте заказ'
         else:
             message = 'Доступных заказов на данный момент нет'
+
 
         keyboard = []
 
