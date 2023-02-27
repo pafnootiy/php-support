@@ -2,6 +2,7 @@
 # import logging
 from contextlib import suppress
 from datetime import date
+from textwrap import dedent
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
@@ -141,6 +142,7 @@ class Command(BaseCommand):
             'developer': self.handle_developer_button,
             'client_new_order': self.handle_client_new_order_button,
             'client_orders': self.handle_client_orders_button,
+            'developer_agreement': self.handle_developer_agreement,
         }
         return methods[variant](update, context)
         
@@ -214,9 +216,41 @@ class Command(BaseCommand):
     def handle_developer_button(self, update, context):
         """Обрабатывает нажатие кнопки 'Программист' в главном меню."""
 
-        # TODO: Написать реальный код вместо заглушки
-        pass
-        return START
+        keyboard = [
+            [
+                InlineKeyboardButton('Условия работы', callback_data='developer_agreement'),
+            ],
+            [
+                InlineKeyboardButton('Регистрация', callback_data='developer_registration'),
+            ],
+            [
+                InlineKeyboardButton('Смотреть свободные заказы', callback_data='show_free_orders'),
+            ],
+            [
+                InlineKeyboardButton('Назад', callback_data='main_menu'),
+            ],
+        ]
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Выберите желаемое действие.',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    def handle_developer_agreement(self, update, context):
+
+        message = dedent('''
+                Пользовательское соглашение
+                ''')
+        keyboard = [
+            [
+                InlineKeyboardButton('Назад', callback_data='developer'),
+            ],
+        ]
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
 
     def handle_error(self, update, error):
         """Обрабатывает ошибки."""
