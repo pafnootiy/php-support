@@ -2,6 +2,7 @@
 # import logging
 from contextlib import suppress
 from datetime import date
+from functools import partial
 from textwrap import dedent
 
 from django.conf import settings
@@ -25,6 +26,7 @@ CLIENT_NEW_ORDER_TITLE = 'CLIENT_NEW_ORDER_TITLE'
 CLIENT_NEW_ORDER_DESCRIPTION = 'CLIENT_NEW_ORDER_DESCRIPTION'
 CLIENT_ORDER_CHOICE = 'CLIENT_ORDER_CHOICE'
 DEVELOPER_BASE_MENU = 'DEVELOPER_BASE_MENU'
+DEVELOPER_SELECT_ORDER = 'DEVELOPER_SELECT_ORDER'
 
 
 class Command(BaseCommand):
@@ -53,6 +55,7 @@ class Command(BaseCommand):
         self.states_handlers = {
             START: self.handle_start_command,
             CLIENT_NEW_ORDER_TITLE: self.handle_new_order_title,
+            DEVELOPER_SELECT_ORDER: self.handle_select_free_order,
         }
 
     def handle(self, *args, **kwargs):
@@ -145,6 +148,7 @@ class Command(BaseCommand):
             'developer_agreement': self.handle_developer_agreement,
             'developer_registration': self.handle_developer_registration,
             'show_free_orders': self.handle_show_free_orders,
+            'handle_select_free_order': self.handle_select_free_order,
         }
         try:
             return methods[variant](update, context)
@@ -297,6 +301,10 @@ class Command(BaseCommand):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
+    def handle_select_free_order(self, update, context):
+        print(update.callback_query.data)
+        pass
+
     def handle_show_order(self, update, context):
         query = update.callback_query
         variant = query.data
@@ -319,13 +327,16 @@ class Command(BaseCommand):
                     Клиент: {order.client.name}
                     ''')
 
-        keyboard.append([InlineKeyboardButton('За работу', callback_data='select_order')])
+        keyboard.append([InlineKeyboardButton('За работу', callback_data='handle_select_free_order')])
         keyboard.append([InlineKeyboardButton('Назад', callback_data='show_free_orders')])
         context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=message,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+
+        return DEVELOPER_SELECT_ORDER
+
 
     def handle_error(self, update, error):
         """Обрабатывает ошибки."""
