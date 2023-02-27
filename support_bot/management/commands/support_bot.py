@@ -143,6 +143,7 @@ class Command(BaseCommand):
             'client_new_order': self.handle_client_new_order_button,
             'client_orders': self.handle_client_orders_button,
             'developer_agreement': self.handle_developer_agreement,
+            'developer_registration': self.handle_developer_registration,
         }
         return methods[variant](update, context)
         
@@ -239,7 +240,30 @@ class Command(BaseCommand):
     def handle_developer_agreement(self, update, context):
 
         message = dedent('''
-                Пользовательское соглашение
+                Пользовательское соглашение.
+                1. Зарегистрироваться.
+                2. Дождаться активации аккаунта админом.
+                3. Выбрать заказ для выполнения.
+                4. Выполнить заказ.
+                5. Отметить заказ выполненным.
+                6. Получить профит.
+                ''')
+        keyboard = [
+            [
+                InlineKeyboardButton('Назад', callback_data='developer'),
+            ],
+        ]
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=message,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    def handle_developer_registration(self, update, context):
+
+        message = dedent('''
+                Запрос на регистрацию отправлен. 
+                Дождитесь активации аккаунта администратором. 
                 ''')
         keyboard = [
             [
