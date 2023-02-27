@@ -85,10 +85,10 @@ class Client(models.Model):
 class Order(models.Model):
     """Заказ."""
 
-    number = models.IntegerField('Номер')
+    number = models.IntegerField('Номер', db_index=True)
     title = models.CharField('Название', max_length=150)
     description = models.TextField('Описание', blank=True)
-    created_at = models.DateTimeField('Время создания', auto_now_add=True)
+    created_at = models.DateTimeField('Время создания', db_index=True, auto_now_add=True)
     client = models.ForeignKey(
         Client,
         related_name='orders',

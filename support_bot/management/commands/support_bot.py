@@ -27,8 +27,8 @@ CLIENT_BASE_MENU = 'CLIENT_BASE_MENU'
 CLIENT_NEW_ORDER_TITLE = 'CLIENT_NEW_ORDER_TITLE'
 CLIENT_ADD_ORDER_DESCRIPTION_MENU = 'CLIENT_ADD_ORDER_DESCRIPTION_MENU'
 CLIENT_ADD_ORDER_DESCRIPTION = 'CLIENT_ADD_ORDER_DESCRIPTION'
-CLIENT_PUBLISH_ORDER_MENU = 'CLIENT_PUBLISH_ORDER_MENU'
-CLIENT_PUBLISH_ORDER_CHOICE = 'CLIENT_PUBLISH_ORDER_CHOICE'
+CLIENT_ORDER_PUBLICATION_MENU = 'CLIENT_ORDER_PUBLICATION_MENU'
+CLIENT_ORDER_PUBLICATION_CHOICE = 'CLIENT_ORDER_PUBLICATION_CHOICE'
 CLIENT_ORDER_CHOICE = 'CLIENT_ORDER_CHOICE'
 DEVELOPER_BASE_MENU = 'DEVELOPER_BASE_MENU'
 DEVELOPER_SELECT_ORDER = 'DEVELOPER_SELECT_ORDER'
@@ -162,7 +162,8 @@ class Command(BaseCommand):
             
         methods = {
             'client_add_order_description_': self.handle_client_add_order_description_button,
-            'client_publish_order_': self.handle_client_publish_order_button,
+            'client_order_publication_': self.handle_client_order_publication_button,
+            'client_order_choice_': self.handle_client_order_choice_button,
         }
         for method in methods:
             length = len(method)
@@ -358,9 +359,9 @@ class Command(BaseCommand):
             chat_id=update.effective_chat.id,
             text=text
         )
-        return self.send_client_publish_order_menu(update, context)
+        return self.send_client_order_publication_menu(update, context)
 
-    def send_client_publish_order_menu(self, update, context):
+    def send_client_order_publication_menu(self, update, context):
         """Посылает в чат Заказчика меню с кнопкой 'Опубликовать Заказ'."""
 
         order_number = context.user_data.pop('order_number')
@@ -368,7 +369,7 @@ class Command(BaseCommand):
             [
                 InlineKeyboardButton(
                     f'Опубликовать Заказ № {order_number}',
-                    callback_data=f'client_publish_order_{order_number}'
+                    callback_data=f'client_order_publication_{order_number}'
                 ),
             ],
             [
@@ -380,9 +381,9 @@ class Command(BaseCommand):
             text='Выберите желаемое действие.',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )            
-        return CLIENT_PUBLISH_ORDER_MENU
+        return CLIENT_ORDER_PUBLICATION_MENU
  
-    def handle_client_publish_order_button(self, update, context):
+    def handle_client_order_publication_button(self, update, context):
         """Обрабатывает нажатие Заказчиком кнопки 'Опубликовать заказ'."""
 
         if not self.check_payment(update, context):
@@ -409,7 +410,7 @@ class Command(BaseCommand):
         )
         return self.handle_client_button(update, context)
  
-    def send_client_message_order_description_exists(self, update, context):
+    def send_client_message_order_description_not_exist(self, update, context):
         """Посылает в чат сообщение для Заказчика о том, что выбранный заказ не содержит описания."""
         
         order_number = context.user_data.pop('order_number')
@@ -424,11 +425,46 @@ class Command(BaseCommand):
         return self.send_client_add_order_description_menu(update, context)
 
     def handle_client_orders_button(self, update, context):
-        """Показывает Заказчику список его заказов."""
+        """Обрабатывает нажатие Заказчиком кнопки 'Мои заказы'."""
 
-        # TODO: Написать реальный код вместо заглушки
-        pass
+        chat_id = update.effective_chat.id
+        orders = Order.objects.filter(client__chat__chat_id=chat_id).order_by('number')
+        if not orders:
+            return self.send_client_message_orders_not_exist(update, context)
+
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    f'{order.number}. {order.title}',
+                    callback_data=f'client_order_choice_{order.number}')
+            ]
+            for order in orders
+        ]
+        keyboard.append([InlineKeyboardButton('«‎ Вернуться в меню Заказчика', callback_data='client')])
+
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Выберите заказ для просмотра.',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
         return CLIENT_ORDER_CHOICE
+
+    def send_client_message_orders_not_exist(self, update, context):
+        """Посылает в чат сообщение об отсутствии заказов у Заказчика."""
+        
+        order_number = context.user_data.pop('order_number')
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=f'У вас пока нет заказов.'
+        )
+        return self.handle_client_button(update, context)
+        
+    def handle_client_order_choice_button(self, update, context):
+        """Обрабатывает нажатие заказчиком кнопки заказа в меню 'Мои заказы'."""
+        
+        # TODO: Заменить заглушку на реальный код.
+        pass
+        return START
     
     def handle_developer_button(self, update, context):
         """Обрабатывает нажатие кнопки 'Программист' в главном меню."""
@@ -510,7 +546,7 @@ class Command(BaseCommand):
 
         context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text='Выберете заказ',
+            text='Выберите заказ',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return DEVELOPER_BASE_MENU
