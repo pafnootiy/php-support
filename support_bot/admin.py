@@ -37,3 +37,7 @@ class OrderAdmin(admin.ModelAdmin):
     search_fields = ['title']
     readonly_fields = ['created_at']
 
+
+@admin.register(models.Message)
+class MessageAdmin(admin.ModelAdmin):
+    pass
