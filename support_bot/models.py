@@ -118,3 +118,18 @@ class Storage(models.Model):
     message = models.TextField(blank=True)
     is_published = models.BooleanField(default=True)
 
+
+class Message(models.Model):
+    text = models.CharField('Сообщение', max_length=500)
+    created_at = models.DateTimeField('Время сообщения', auto_now_add=True)
+    order = models.ForeignKey('Order', on_delete=models.CASCADE, related_name='order_message')
+    # 0-программист 1-заказчик
+    sender_role = models.BooleanField('Роль отправителя')
+
+    class Meta:
+        verbose_name = 'Сообщение'
+        verbose_name_plural = 'Сообщения'
+
+    def __str__(self):
+        return self.text[:50]
+

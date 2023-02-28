@@ -15,8 +15,7 @@ from telegram.error import BadRequest
 from telegram.ext import CallbackQueryHandler, CommandHandler
 from telegram.ext import Filters, MessageHandler, Updater
 
-from ...models import Chat, Client, Developer, Order
-
+from ...models import Chat, Client, Developer, Order, Message
 
 # TODO: Раскомментировать после отладки
 # logger = logging.getLogger(__file__)
@@ -158,6 +157,7 @@ class Command(BaseCommand):
             'make_done_order': self.handle_make_done_order,
             'show_history_orders': self.handle_show_history_orders,
             'make_question_order': self.handle_make_question_order,
+            'developer_account': self.handle_developer_account,
         }
 
         if variant in methods:
@@ -378,22 +378,37 @@ class Command(BaseCommand):
 
         keyboard = [
             [
+                InlineKeyboardButton('Аккаунт', callback_data='developer_account'),
+            ],
+            [
+                InlineKeyboardButton('Cвободные заказы', callback_data='show_free_orders'),
+                InlineKeyboardButton('Заказы в работе', callback_data='show_work_orders'),
+            ],
+            [
+                InlineKeyboardButton('Смотреть историю выполненных заказов', callback_data='show_history_orders'),
+            ],
+            [
+                InlineKeyboardButton('<< Назад', callback_data='main_menu'),
+            ],
+        ]
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Выберите желаемое действие.',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+        return DEVELOPER_BASE_MENU
+
+    def handle_developer_account(self, update, context):
+        keyboard = [
+            [
                 InlineKeyboardButton('Условия работы', callback_data='developer_agreement'),
             ],
             [
                 InlineKeyboardButton('Регистрация', callback_data='developer_registration'),
             ],
             [
-                InlineKeyboardButton('Смотреть свободные заказы', callback_data='show_free_orders'),
-            ],
-            [
-                InlineKeyboardButton('Смотреть заказы в работе', callback_data='show_work_orders'),
-            ],
-            [
-                InlineKeyboardButton('Смотреть историю выполненных заказов', callback_data='show_history_orders'),
-            ],
-            [
-                InlineKeyboardButton('Назад', callback_data='main_menu'),
+                InlineKeyboardButton('<< Назад', callback_data='developer'),
             ],
         ]
         context.bot.send_message(
@@ -503,12 +518,17 @@ class Command(BaseCommand):
             )
             return DEVELOPER_BASE_MENU
 
-        message = dedent(f'''
-                    title: {order.title}
-                    description: {order.description}
-                    customer: {order.client}
-                    ''')
+        order_messages = Message.objects.filter(order=order).order_by('created_at')
 
+        formed_message = ''
+        for message in order_messages:
+            if not message.sender_role:
+                formed_message += 'Программист: ' + message.text + '\n'
+            else:
+                formed_message += 'Заказчик: ' + message.text + '\n'
+
+        message = f'title: {order.title}\ndescription: {order.description}\ncustomer: {order.client}\n\nmessages:\n{formed_message}'
+        context.user_data['order_id'] = order.pk
         keyboard.append([InlineKeyboardButton('Задать вопрос по заказу', callback_data='make_question_order')])
         keyboard.append([InlineKeyboardButton('Сделано', callback_data='make_done_order')])
         keyboard.append([InlineKeyboardButton('<< Назад', callback_data='show_work_orders')])
@@ -529,10 +549,25 @@ class Command(BaseCommand):
         return DEVELOPER_ADD_QUESTION_ORDER
 
     def handle_add_question_order(self, update, context):
-        question = update.message.text
 
         keyboard = []
+        message_question = update.message.text
+        try:
+            order = Order.objects.get(pk=context.user_data['order_id'])
+        except ObjectDoesNotExist:
+            message = 'Такого заказа нет'
+            keyboard.append([InlineKeyboardButton('Назад', callback_data='show_work_orders')])
+            context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=message,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            return DEVELOPER_BASE_MENU
+
         message = 'Ваш вопрос отправлен заказчику'
+
+        question = Message.objects.create(text=message_question, order=order, sender_role=0)
+
         keyboard.append([InlineKeyboardButton('<< Назад', callback_data='show_work_orders')])
         context.bot.send_message(
             chat_id=update.effective_chat.id,
@@ -560,14 +595,7 @@ class Command(BaseCommand):
         order.finished_at = timezone.now()
         order.save()
 
-        message = 'Заказ выполнен'
-        keyboard.append([InlineKeyboardButton('<< Назад', callback_data='show_work_orders')])
-        context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=message,
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-        return DEVELOPER_BASE_MENU
+        return self.handle_show_work_orders(update, context)
 
     def handle_developer_agreement(self, update, context):
 
@@ -582,7 +610,7 @@ class Command(BaseCommand):
                 ''')
         keyboard = [
             [
-                InlineKeyboardButton('Назад', callback_data='developer'),
+                InlineKeyboardButton('<< Назад', callback_data='developer_account'),
             ],
         ]
         context.bot.send_message(
@@ -601,7 +629,7 @@ class Command(BaseCommand):
                 ''')
         keyboard = [
             [
-                InlineKeyboardButton('Назад', callback_data='developer'),
+                InlineKeyboardButton('<< Назад', callback_data='developer_account'),
             ],
         ]
         context.bot.send_message(
@@ -657,14 +685,7 @@ class Command(BaseCommand):
         order.developer = developer
         order.save()
 
-        keyboard.append([InlineKeyboardButton('Назад', callback_data='show_free_orders')])
-        context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text='Заказ выбран.',
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-
-        return DEVELOPER_BASE_MENU
+        return self.handle_show_free_orders(update, context)
 
     def handle_show_order(self, update, context):
 
@@ -689,8 +710,8 @@ class Command(BaseCommand):
                     ''')
 
         context.user_data['order_id'] = order_id
-        keyboard.append([InlineKeyboardButton('За работу', callback_data='handle_select_free_order')])
-        keyboard.append([InlineKeyboardButton('Назад', callback_data='show_free_orders')])
+        keyboard.append([InlineKeyboardButton('В работу', callback_data='handle_select_free_order')])
+        keyboard.append([InlineKeyboardButton('<< Назад', callback_data='show_free_orders')])
         context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=message,
