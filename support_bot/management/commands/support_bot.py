@@ -26,9 +26,6 @@ MAIN_MENU = 'MAIN_MENU'
 CLIENT_BASE_MENU = 'CLIENT_BASE_MENU'
 CLIENT_NEW_ORDER_TITLE = 'CLIENT_NEW_ORDER_TITLE'
 CLIENT_ADD_ORDER_DESCRIPTION = 'CLIENT_ADD_ORDER_DESCRIPTION'
-CLIENT_ADD_ORDER_DESCRIPTION = 'CLIENT_ADD_ORDER_DESCRIPTION'
-CLIENT_ORDER_PUBLICATION_MENU = 'CLIENT_ORDER_PUBLICATION_MENU'
-CLIENT_ORDER_PUBLICATION_CHOICE = 'CLIENT_ORDER_PUBLICATION_CHOICE'
 CLIENT_ORDER_CHOICE = 'CLIENT_ORDER_CHOICE'
 DEVELOPER_BASE_MENU = 'DEVELOPER_BASE_MENU'
 DEVELOPER_SELECT_ORDER = 'DEVELOPER_SELECT_ORDER'
@@ -108,7 +105,7 @@ class Command(BaseCommand):
         )
 
         if dialogue_state_from_db is None:
-            chat = Chat.objects.get_or_create(chat_id=chat_id)
+            chat, _ = Chat.objects.get_or_create(chat_id=chat_id)
             dialogue_state_from_db = chat.dialogue_state
 
         if dialogue_state_from_db != dialogue_state:
@@ -167,8 +164,6 @@ class Command(BaseCommand):
             return methods[variant](update, context)
             
         methods = {
-            'client_add_order_description_': self.handle_client_add_order_description_button,
-            'client_order_publication_': self.handle_client_order_publication_button,
             'client_order_choice_': self.send_client_order_details,
         }
         for method in methods:
@@ -182,23 +177,27 @@ class Command(BaseCommand):
         """Обрабатывает нажатие кнопки 'Заказчик' в главном меню."""
 
         if not self.check_payment(update, context):
-            return send_message_about_payment(update, context)
+            return self.send_message_about_payment(update, context)
         
-        keyboard = [
-            [
-                InlineKeyboardButton('Создать заказ', callback_data='client_new_order'),
-                InlineKeyboardButton('Мои заказы', callback_data='client_orders')
-            ],
-            [
-                InlineKeyboardButton('«‎ Вернуться в главное меню', callback_data='main_menu')
-            ]
-        ]
+        keyboard = [[self.get_new_order_button(), self.get_my_orders_button()],[self.get_main_menu_button()]]
         context.bot.send_message(
             chat_id=update.effective_chat.id,
             text='Выберите желаемое действие.',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return CLIENT_BASE_MENU
+        
+    @staticmethod
+    def get_new_order_button():
+        return InlineKeyboardButton('Создать заказ', callback_data='client_new_order')
+
+    @staticmethod
+    def get_my_orders_button():
+        return InlineKeyboardButton('Мои заказы', callback_data='client_orders')
+        
+    @staticmethod
+    def get_main_menu_button():
+        return InlineKeyboardButton('«‎ Вернуться в главное меню', callback_data='main_menu')
 
     def check_payment(self, update, context):
         """Проверяет, оплатил ли Заказчик предоставление услуг."""
@@ -207,7 +206,7 @@ class Command(BaseCommand):
         count = Client.objects.filter(chat__chat_id=chat_id, expiration_at__gte=date.today()).count()
         return count == 1
 
-    def send_message_about_payment(update, context):
+    def send_message_about_payment(self, update, context):
         """Посылает в чат Заказчика сообщение о необходимости оплатить услуги."""
 
         keyboard = [[InlineKeyboardButton('«‎ Вернуться в главное меню', callback_data='main_menu')]]
@@ -234,15 +233,15 @@ class Command(BaseCommand):
         """Принимает от Заказчика ввод названия нового заказа."""
 
         if not self.check_payment(update, context):
-            return send_message_about_payment(update, context)
+            return self.send_message_about_payment(update, context)
         
         title = update.message.text.strip()
         if len(title) < 4:
             context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text='Слишком короткое Название заказа. Заказ не создан.'
+                text='Слишком короткое Название заказа.\nВведите Название заказа'
             )
-            return self.handle_client_button(update, context)
+            return CLIENT_NEW_ORDER_TITLE
 
         chat_id = update.effective_chat.id
         client = Client.objects.get(chat__chat_id=chat_id)
@@ -252,17 +251,46 @@ class Command(BaseCommand):
 
         context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text=f'Заказ создан.'
+            text=f'Введите Описание заказа.'
         )
         context.user_data['order_number'] = order_number
-        return self.send_client_order_details(update, context)
+        # return self.send_client_order_details(update, context)
+        return CLIENT_ADD_ORDER_DESCRIPTION
+        
+    def handle_add_order_description(self, update, context):
+        """Принимает от Заказчика ввод описания заказа."""
  
+        if not self.check_payment(update, context):
+            return self.send_message_about_payment(update, context)
+            
+        description = update.message.text.strip()
+        chat_id = update.effective_chat.id        
+        order_number = context.user_data['order_number']
+        orders = Order.objects.filter(client__chat__chat_id=chat_id, number=order_number)
+        if not orders:
+            return self.send_client_message_order_not_exist(update, context)
+
+        order = orders[0]
+        order.description = description
+        order.published_at = datetime.now()
+        order.save()
+        
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text='Заказ создан.'
+        )
+        return self.send_client_order_details(update, context)
+         
     def send_client_order_details(self, update, context):
         """Отправляет в чат детали заказа для Заказчика."""
         
         chat_id = update.effective_chat.id
         order_number = self.get_order_number_from_bot(update, context)
-        orders = Order.objects.filter(client__chat__chat_id=chat_id, number=order_number).select_related('developer')       
+        orders = (
+            Order.objects
+                 .filter(client__chat__chat_id=chat_id, number=order_number, published_at__isnull=False)
+                 .select_related('developer')
+        )    
         if not orders:
             context.user_data['order_number'] = order_number
             return self.send_client_message_order_not_exist(update, context)
@@ -274,69 +302,22 @@ class Command(BaseCommand):
             f'*{order.title}*\n'
             f'Создан: {created_at}\n'
         )
-        if not order.description:
-            text = f'{text}\n*В заказе отсутствует описание. Необходимо его ввести.*'
-            button_title = f'Добавить описание к Заказу № {order_number}'
-            keyboard = [
-                [InlineKeyboardButton(button_title, callback_data=f'client_add_order_description_{order_number}')],
-                [InlineKeyboardButton('«‎ Вернуться в меню Заказчика', callback_data='client')]
-            ]
-            context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=text,
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )         
-            return CLIENT_ADD_ORDER_DESCRIPTION
 
-        if not order.published_at:
-            text = f'{text}*Статус: Не опубликован*\n\n{order.description}'
-            button_title = f'Опубликовать Заказ № {order_number}'
-            keyboard = [
-                [InlineKeyboardButton(button_title, callback_data=f'client_order_publication_{order_number}')],
-                [InlineKeyboardButton('«‎ Вернуться в меню Заказчика', callback_data='client')]
-            ]
-            context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=text,
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-            return CLIENT_ORDER_PUBLICATION_MENU
-
-        if not order.developer:
-            text = f'{text}Статус: Не взят в работу\n\n{order.description}'
-
-            keyboard = [
-                [InlineKeyboardButton('Мои заказы', callback_data='client_orders')],
-                [InlineKeyboardButton('«‎ Вернуться в меню Заказчика', callback_data='client')]
-            ]
-            context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=text,
-                parse_mode='Markdown',
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-            return CLIENT_ORDER_PUBLICATION_MENU
- 
-        text = f'{text}Статус: Исполнитель: {order.developer.name}\n'
-        finished_at = f'{order.finished_at}'[:16]
+        developer_name = order.developer.name if order.developer else '-'
+        text = f'{text}Исполнитель: {developer_name}\n'           
         if order.finished_at:
-            text = f'{text}Завершён: {finished_at}\n\n{order.description}'
-        else:
-            text = f'{text}Статус: В работе\n\n{order.description}'
+            finished_at = f'{order.finished_at}'[:16]
+            text = f'{text}Завершён: {finished_at}\n'
+        text = f'{text}\n{order.description}'
 
-        keyboard = [
-            [InlineKeyboardButton('Мои заказы', callback_data='client_orders')],
-            [InlineKeyboardButton('«‎ Вернуться в меню Заказчика', callback_data='client')]
-        ]
+        keyboard = [[self.get_new_order_button(), self.get_my_orders_button()],[self.get_main_menu_button()]]
         context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=text,
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
-        return CLIENT_ORDER_PUBLICATION_MENU
+        return CLIENT_BASE_MENU
 
     def get_order_number_from_bot(self, update, context):
         """Извлекает номер заказа из бота."""
@@ -346,31 +327,7 @@ class Command(BaseCommand):
  
         query_data = update.callback_query.data
         return int(query_data[query_data.rfind('_')+1:])
-
-    def handle_client_add_order_description_button(self, update, context):
-        """Обрабатывает нажатие Заказчиком кнопки 'Добавить описание к заказу'."""
-
-        if not self.check_payment(update, context):
-            return self.send_message_about_payment(update, context)
-            
-        chat_id = update.effective_chat.id
-        order_number = self.get_order_number_from_bot(update, context)
-        orders = Order.objects.filter(client__chat__chat_id=chat_id, number=order_number)
-        if not orders:
-            context.user_data['order_number'] = order_number
-            return self.send_client_message_order_not_exist(update, context)
-            
-        if orders[0].description:
-            context.user_data['order_number'] = order_number        
-            return self.send_client_message_order_description_exists(update, context)
-            
-        context.user_data['order_number'] = order_number
-        context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=f'Введите Описание заказа № {order_number} ("{orders[0].title}"):'
-        )
-        return CLIENT_ADD_ORDER_DESCRIPTION
-        
+      
     def send_client_message_order_not_exist(self, update, context):
         """Посылает в чат сообщение об отсутствии выбранного заказа для Заказчика."""
         
@@ -380,97 +337,12 @@ class Command(BaseCommand):
             text=f'Заказа № {order_number} не существует. Обратитесь к администратору.'
         )
         return self.handle_client_button(update, context)
-        
-    def send_client_message_order_description_exists(self, update, context):
-        """Посылает в чат сообщение для Заказчика о том, что выбранный заказ уже содержит описание."""
-        
-        order_number = context.user_data.pop('order_number')
-        context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=f'Заказ № {order_number} уже содержит описание.'
-        )
-        return self.handle_client_button(update, context)
-        
-    def handle_add_order_description(self, update, context):
-        """Принимает от Заказчика ввод описания заказа."""
- 
-        if not self.check_payment(update, context):
-            return self.send_message_about_payment(update, context)
-            
-        description = update.message.text.strip()
-        if len(description) < 10:
-            context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text='Слишком короткое описание. Описание в заказ не добавлено.'
-            )
-            return self.send_client_order_details(update, context)
-
-        chat_id = update.effective_chat.id        
-        order_number = context.user_data['order_number']
-        orders = Order.objects.filter(client__chat__chat_id=chat_id, number=order_number)
-        if not orders:
-            return self.send_client_message_order_not_exist(update, context)
-
-        order = orders[0]
-        if order.description:
-            context.user_data['order_number'] = order_number        
-            return self.send_client_message_order_description_exists(update, context)
-
-        order.description = description
-        order.save()
-        
-        context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text='Описание в заказ добавлено.'
-        )
-        return self.send_client_order_details(update, context)
-
-    def handle_client_order_publication_button(self, update, context):
-        """Обрабатывает нажатие Заказчиком кнопки 'Опубликовать заказ'."""
-
-        if not self.check_payment(update, context):
-            return self.send_message_about_payment(update, context)
-
-        chat_id = update.effective_chat.id
-        order_number = self.get_order_number_from_bot(update, context)
-        orders = Order.objects.filter(client__chat__chat_id=chat_id, number=order_number)
-        if not orders:
-            context.user_data['order_number'] = order_number
-            return self.send_client_message_order_not_exist(update, context)
-            
-        order = orders[0]
-        if not order.description:
-            context.user_data['order_number'] = order_number        
-            return self.send_client_message_order_description_not_exist(update, context)
-        
-        order.published_at = datetime.now()
-        order.save()
-
-        context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=f'Заказ № {order_number} опубликован.'
-        )
-        return self.send_client_order_details(update, context)
- 
-    def send_client_message_order_description_not_exist(self, update, context):
-        """Посылает в чат сообщение для Заказчика о том, что выбранный заказ не содержит описания."""
-        
-        order_number = context.user_data.pop('order_number')
-        text = (
-            f'У заказа № {order_number} нет описания.'
-            '\nОпубликовать заказ без описания нельзя.'
-        )
-        context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=text
-        )
-        return self.send_client_add_order_description_menu(update, context)
 
     def handle_client_orders_button(self, update, context):
         """Обрабатывает нажатие Заказчиком кнопки 'Мои заказы'."""
 
         chat_id = update.effective_chat.id
-        orders = Order.objects.filter(client__chat__chat_id=chat_id).order_by('number')
+        orders = Order.objects.filter(client__chat__chat_id=chat_id, published_at__isnull=False).order_by('number')
         if not orders:
             return self.send_client_message_orders_not_exist(update, context)
 
